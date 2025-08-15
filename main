@@ -1,0 +1,116 @@
+--// Auto Reconnect Script with Rayfield UI
+--// Put this in your auto-execute folder
+
+-- Load Rayfield UI
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+-- Config Save Path
+local configFile = "ReconnectConfig.txt"
+local HttpService = game:GetService("HttpService")
+
+local config = {
+    PrivateServerURL = "",
+    AutoReconnect = true,
+    LastPublicServerId = ""
+}
+
+-- Load config if exists
+pcall(function()
+    if isfile(configFile) then
+        config = HttpService:JSONDecode(readfile(configFile))
+    end
+end)
+
+-- Save config function
+local function saveConfig()
+    writefile(configFile, HttpService:JSONEncode(config))
+end
+
+-- Create Window
+local Window = Rayfield:CreateWindow({
+    Name = "Auto Reconnect",
+    LoadingTitle = "Auto Reconnect Script",
+    LoadingSubtitle = "by ChatGPT",
+    ConfigurationSaving = { Enabled = false }
+})
+
+-- Tab for settings
+local SettingsTab = Window:CreateTab("Settings", 4483362458)
+
+-- Input for private server URL
+SettingsTab:CreateInput({
+    Name = "Private Server Link",
+    PlaceholderText = "Leave blank for public rejoin",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(text)
+        config.PrivateServerURL = text
+        saveConfig()
+    end
+})
+
+-- Toggle for auto reconnect
+SettingsTab:CreateToggle({
+    Name = "Enable Auto Reconnect",
+    CurrentValue = config.AutoReconnect,
+    Callback = function(state)
+        config.AutoReconnect = state
+        saveConfig()
+    end
+})
+
+-- Function to rejoin
+local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+
+local function reconnect()
+    if not config.AutoReconnect then return end
+    if config.PrivateServerURL ~= "" then
+        -- Join private server from link
+        local code = config.PrivateServerURL:match("privateServerLinkCode=([%w-_]+)")
+        local placeId = tonumber(config.PrivateServerURL:match("https://www%.roblox%.com/games/(%d+)/"))
+        if code and placeId then
+            TeleportService:TeleportToPrivateServer(placeId, code, {localPlayer})
+        else
+            warn("Invalid private server URL format")
+        end
+    elseif config.LastPublicServerId ~= "" then
+        -- Join same public server
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, config.LastPublicServerId, localPlayer)
+    else
+        -- Fallback: rejoin game
+        TeleportService:Teleport(game.PlaceId, localPlayer)
+    end
+end
+
+-- Save last public server ID while in-game
+task.spawn(function()
+    while task.wait(5) do
+        pcall(function()
+            if not game.VIPServerId or game.VIPServerId == "" then
+                local id = game.JobId
+                if id and id ~= "" and id ~= config.LastPublicServerId then
+                    config.LastPublicServerId = id
+                    saveConfig()
+                end
+            end
+        end)
+    end
+end)
+
+-- Listen for disconnects / teleport fails
+localPlayer.OnTeleport:Connect(function(State)
+    if State == Enum.TeleportState.Failed then
+        task.wait(2)
+        reconnect()
+    end
+end)
+
+game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(obj)
+    if obj.Name == "ErrorPrompt" then
+        task.wait(2)
+        reconnect()
+    end
+end)
+
+print("✅ Auto Reconnect Script Loaded")
