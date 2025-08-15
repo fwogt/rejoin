@@ -1,5 +1,4 @@
---// Auto Reconnect Script with Rayfield UI
---// Put this in your auto-execute folder
+
 
 -- Load Rayfield UI
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
